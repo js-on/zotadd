@@ -1,0 +1,8 @@
+beautifulsoup4==4.10.0
+htmldate==1.2.1
+isbntools==4.3.28
+langdetect==1.0.9
+newspaper==0.1.0.7
+newspaper3k==0.2.8
+nltk==3.7
+pyzotero==1.5.2
