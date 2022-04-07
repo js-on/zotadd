@@ -6,8 +6,11 @@ from isbntools import app as ISBN
 import sys
 import re
 from typing import Callable, Dict
-from methods import *
 import nltk
+import tempfile
+import requests
+import PyPDF2
+from methods import *
 
 
 def analyze_url(url: str) -> None:
@@ -66,6 +69,40 @@ def analyze_isbn(isbn: str) -> None:
     add_to_zotero(data=data, item_type="book")
 
 
+def analyze_pdf(url: str) -> None:
+    """Retrieve metadata for the given PDF
+
+    Args:
+        url (str): URL to the PDF file
+    """
+    fname = url[::-1][:url[::-1].find("/")][::-1].split(".pdf")[0]+".pdf"
+    print("[i] Analyzing PDF ->", fname)
+    content = requests.get(url, allow_redirects=get_conf(
+        "allow_redirects"), verify=get_conf("verify")).content
+    fp = tempfile.TemporaryFile()
+    fp.write(content)
+    pdf = PyPDF2.PdfFileReader(fp)
+    metadata = pdf.getDocumentInfo()
+    date = metadata.get("/CreationDate")
+    if not date:
+        date = metadata.get("/ModDate")
+    data = {
+        "author": metadata.author.split(","),
+        "title": metadata.title,
+        "abstractNote": metadata.subject,
+        "date": date[2:6] + "-" + date[6:8] + "-" + date[8:10] if date else "",
+        "url": url,
+        "language": get_language(subject=metadata.subject),
+        "shortTitle": fname
+    }
+    for k, v in data.items():
+        if not v:
+            data[k] = input(f"Enter value for '{k}': ")
+
+    add_to_zotero(data=data, item_type="document")
+    fp.close()
+
+
 def help(*args):
     if args:
         print(f"[!] Could not determine type of '{args[0]}'")
@@ -74,9 +111,10 @@ def help(*args):
 
 
 REGEX: Dict[re.Pattern, Callable] = {
+    re.compile(r'^http[s]?://.*\.pdf.*$'): analyze_pdf,
     re.compile(r'^(?=(?:\D*\d){10}(?:(?:\D*\d){3})?$)[\d-]+$'): analyze_isbn,
-    re.compile(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'): analyze_url,
-    re.compile(r'.*'): help
+    re.compile(r'^http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+$'): analyze_url,
+    re.compile(r'^.*$'): help
 }
 
 

@@ -28,7 +28,7 @@ def get_title(data: str) -> str:
     """
     soup = bs4(data, "lxml")
     try:
-        title = soup.findAll("title")[0].text
+        title = soup.findAll("title")[0].text.strip()
     except:
         title = "Could not extract title"
     return title
@@ -71,7 +71,7 @@ def add_to_zotero(data: dict, item_type: str) -> None:
 
     Args:
         data (dict): The metadata to be addedd
-        item_type (str): The type of the item to be created (book|webpage)
+        item_type (str): The type of the item to be created (book|webpage|document)
     """
     zot = zotero.Zotero(library_id=get_conf("libraryID"), library_type=get_conf("libraryType"),
                         api_key=get_conf("apiKey"))
@@ -109,8 +109,22 @@ def add_to_zotero(data: dict, item_type: str) -> None:
             item["accessDate"] = data["accessDate"]
             item["tags"] = [{"tag": tag} for tag in data["tags"]]
             item["collections"] = [get_collection(zot)]
+        case "document":
+            item = zot.item_template("document")
+            item["title"] = data["title"]
+            item["date"] = data["date"]
+            item["creators"] = [
+                {
+                    "creatorType": "author",
+                    "name": name
+                } for name in data["author"]
+            ]
+            item["abstractNote"] = data["abstractNote"]
+            item["url"] = data["url"]
+            item["language"] = data["language"]
+            item["shortTitle"] = data["shortTitle"]
         case _:
             print(f"[!] Unknown item_type '{item_type}'")
             exit()
     zot.create_items([item])
-    print(f"[i] Added item of type {item_type} with title '{item['title']}")
+    print(f"[i] Added item of type {item_type} with title '{item['title']}'")
