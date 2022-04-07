@@ -86,11 +86,19 @@ def analyze_pdf(url: str) -> None:
     date = metadata.get("/CreationDate")
     if not date:
         date = metadata.get("/ModDate")
+    try:
+        date = date[2:6] + "-" + date[6:8] + "-" + date[8:10]
+    except:
+        date = None
+    try:
+        authors = metadata.author.split(",")
+    except:
+        authors = None
     data = {
-        "author": metadata.author.split(","),
+        "author": authors,
         "title": metadata.title,
         "abstractNote": metadata.subject,
-        "date": date[2:6] + "-" + date[6:8] + "-" + date[8:10] if date else "",
+        "date": date,
         "url": url,
         "language": get_language(subject=metadata.subject),
         "shortTitle": fname
@@ -98,6 +106,9 @@ def analyze_pdf(url: str) -> None:
     for k, v in data.items():
         if not v:
             data[k] = input(f"Enter value for '{k}': ")
+    
+    if type(data["author"]) != list:
+        data["author"] = data["author"].split(",")
 
     add_to_zotero(data=data, item_type="document")
     fp.close()
