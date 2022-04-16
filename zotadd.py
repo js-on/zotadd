@@ -106,7 +106,7 @@ def analyze_pdf(url: str) -> None:
     for k, v in data.items():
         if not v:
             data[k] = input(f"Enter value for '{k}': ")
-    
+
     if type(data["author"]) != list:
         data["author"] = data["author"].split(",")
 
@@ -114,10 +114,32 @@ def analyze_pdf(url: str) -> None:
     fp.close()
 
 
+def read_from_webcam(*args) -> None:
+    """Use webcam to retrieve ISBN from a book and enrich its metadata via `analyze_isbn()`.
+    """
+    # TODO: Find out, why preview window has disappeared.
+    isbn = capture_from_webcam()
+    if isbn:
+        analyze_isbn(isbn)
+    else:
+        print("Could not read ISBN from webcam.")
+        exit(1)
+
+
 def help(*args):
+    """Print help
+    """
     if args:
         print(f"[!] Could not determine type of '{args[0]}'")
-    print(f"Usage: {sys.argv[0]} <url|isbn>")
+    cmd = sys.argv[0]
+    print("Usage:")
+    print(f"  Add from ISBN:")
+    print(f"    Manual input:    {cmd} <isbn>")
+    print(f"    Scan via webcam: {cmd} cam")
+    print(f"  Add URL:")
+    print(f"    Manual input:    {cmd} <url>")
+    print(f"  Add PDF:")
+    print(f"    From URL:        {cmd} <url containing .pdf>")
     exit(1)
 
 
@@ -125,6 +147,7 @@ REGEX: Dict[re.Pattern, Callable] = {
     re.compile(r'^http[s]?://.*\.pdf.*$'): analyze_pdf,
     re.compile(r'^(?=(?:\D*\d){10}(?:(?:\D*\d){3})?$)[\d-]+$'): analyze_isbn,
     re.compile(r'^http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+$'): analyze_url,
+    re.compile(r'^cam$'): read_from_webcam,
     re.compile(r'^.*$'): help
 }
 

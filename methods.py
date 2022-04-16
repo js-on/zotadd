@@ -1,8 +1,13 @@
 import json
+from time import sleep
 from typing import Any
 from langdetect import detect
 from pyzotero import zotero
 from bs4 import BeautifulSoup as bs4
+from imutils.video import VideoStream
+import imutils
+from pyzbar import pyzbar
+import cv2
 
 
 def get_conf(key: str) -> Any:
@@ -79,12 +84,21 @@ def add_to_zotero(data: dict, item_type: str) -> None:
         case "book":
             item = zot.item_template("book")
             item["title"] = data["title"]
-            item["creators"] = [
-                {
-                    "creatorType": "author",
-                    "name": name
-                } for name in data["author"]
-            ]
+            if data["author"]:
+                item["creators"] = [
+                    {
+                        "creatorType": "author",
+                        "name": name
+                    } for name in data["author"] if data["author"]
+                ]
+            else:
+                item["creators"] = [
+                    {
+                        "creatorType": "author",
+                        "name": input("Author: ")
+                    }
+                ]
+
             item["abstractNote"] = data["abstractNote"]
             item["date"] = data["year"]
             item["language"] = data["language"]
@@ -128,3 +142,36 @@ def add_to_zotero(data: dict, item_type: str) -> None:
             exit()
     zot.create_items([item])
     print(f"[i] Added item of type {item_type} with title '{item['title']}'")
+
+
+def capture_from_webcam() -> str | None:
+    print("[i] Starting webcam...")
+    print("    Press ESC to exit.")
+    vs = VideoStream(src=0).start()
+    sleep(2.0)
+    found = set()
+    cnt = 0
+    while True:
+        print(f"Frame: {cnt}", end='\r')
+        cnt += 1
+        frameData = vs.read()
+        frameData = imutils.resize(frameData, width=600)
+        barcodes = pyzbar.decode(frameData)
+        for barcode in barcodes:
+            (x, y, width, height) = barcode.rect
+            cv2.rectangle(frameData, (x, y),
+                          (x+width, y+height), (0,  0, 255), 2)
+            barcodeData = barcode.data.decode("utf-8")
+            barcodeType = barcode.type
+            textData = "{} ({})".format(barcodeData, barcodeType)
+            cv2.putText(frameData, textData, (x, y - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            if barcodeData not in found:
+                found.add(barcodeData)
+                print(f"\n[i] Found ISBN: {barcodeData}")
+                while (correct := input(">>> Is this correct? (yY/nN): ")) not in ["y", "Y", "n", "N"]:
+                    continue
+                if correct in ["y", "Y"]:
+                    cv2.destroyAllWindows()
+                    vs.stop()
+                    return barcodeData
