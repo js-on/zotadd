@@ -11,6 +11,7 @@ import tempfile
 import requests
 import PyPDF2
 from methods import *
+import os
 
 
 def analyze_url(url: str) -> None:
@@ -69,18 +70,28 @@ def analyze_isbn(isbn: str) -> None:
     add_to_zotero(data=data, item_type="book")
 
 
-def analyze_pdf(url: str) -> None:
+def analyze_pdf(url: str = None, path: str = None) -> None:
     """Retrieve metadata for the given PDF
 
     Args:
-        url (str): URL to the PDF file
+        url (str, optional): Retrieve PDF from URL and extract information. Defaults to None.
+        path (str, optional): Read PDF from path and extract information. Defaults to None.
     """
-    fname = url[::-1][:url[::-1].find("/")][::-1].split(".pdf")[0]+".pdf"
-    print("[i] Analyzing PDF ->", fname)
-    content = requests.get(url, allow_redirects=get_conf(
-        "allow_redirects"), verify=get_conf("verify")).content
-    fp = tempfile.TemporaryFile()
-    fp.write(content)
+    if url:
+        fname = url[::-1][:url[::-1].find("/")][::-1].split(".pdf")[0]+".pdf"
+        print("[i] Analyzing PDF ->", fname)
+        content = requests.get(url, allow_redirects=get_conf(
+            "allow_redirects"), verify=get_conf("verify")).content
+        fp = tempfile.TemporaryFile()
+        fp.write(content)
+    elif path:
+        fp = open(path, 'rb')
+        url = input("Enter a URL pointing to this file: ")
+        fname = path
+    else:
+        print(
+            f"[!] Something went wrong when calling analyze_pdf with no suitable parameters.")
+        exit(1)
     pdf = PyPDF2.PdfFileReader(fp)
     metadata = pdf.getDocumentInfo()
     date = metadata.get("/CreationDate")
@@ -110,8 +121,10 @@ def analyze_pdf(url: str) -> None:
     if type(data["author"]) != list:
         data["author"] = data["author"].split(",")
 
-    add_to_zotero(data=data, item_type="document")
-    fp.close()
+    # add_to_zotero(data=data, item_type="document")
+    print(data)
+    if url:
+        fp.close()
 
 
 def read_from_webcam(*args) -> None:
@@ -124,6 +137,17 @@ def read_from_webcam(*args) -> None:
     else:
         print("Could not read ISBN from webcam.")
         exit(1)
+
+
+def from_local_pdf(*args) -> None:
+    """Add local file to your Zotero Collection
+    """
+    fpath = args[0]
+    if not os.path.exists(fpath):
+        print(f"[!] File '{fpath}' does not exist")
+        exit(1)
+
+    analyze_pdf(path=fpath)
 
 
 def help(*args):
@@ -140,11 +164,13 @@ def help(*args):
     print(f"    Manual input:    {cmd} <url>")
     print(f"  Add PDF:")
     print(f"    From URL:        {cmd} <url containing .pdf>")
+    print(f"    From path:       {cmd} /path/to/file.pdf")
     exit(1)
 
 
 REGEX: Dict[re.Pattern, Callable] = {
     re.compile(r'^http[s]?://.*\.pdf.*$'): analyze_pdf,
+    re.compile(r'^[\/\.~\w][\w\\\/\s\.]+\.pdf$'): from_local_pdf,
     re.compile(r'^(?=(?:\D*\d){10}(?:(?:\D*\d){3})?$)[\d-]+$'): analyze_isbn,
     re.compile(r'^http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+$'): analyze_url,
     re.compile(r'^cam$'): read_from_webcam,
